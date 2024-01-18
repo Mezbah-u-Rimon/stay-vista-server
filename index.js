@@ -3,7 +3,7 @@ const app = express()
 require('dotenv').config()
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
-const { MongoClient, ServerApiVersion } = require('mongodb')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 5000
@@ -46,10 +46,13 @@ const client = new MongoClient(uri, {
 })
 async function run() {
   try {
+
+    const usersCollection = client.db('stayVistaDB').collection('users');
+    const roomsCollection = client.db('stayVistaDB').collection('rooms');
+
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
-      console.log('I need a new jwt', user)
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: '365d',
       })
@@ -85,7 +88,6 @@ async function run() {
       const query = { email: email }
       const options = { upsert: true }
       const isExist = await usersCollection.findOne(query)
-      console.log('User found?----->', isExist)
       if (isExist) return res.send(isExist)
       const result = await usersCollection.updateOne(
         query,
@@ -95,6 +97,20 @@ async function run() {
         options
       )
       res.send(result)
+    })
+
+    //rooms collection created
+    //get all rooms
+    app.get('/rooms', async (req, res) => {
+      const result = await roomsCollection.find().toArray()
+      res.send(result);
+    })
+
+    //get single rooms
+    app.get('/rooms/:id', async (req, res) => {
+      const id = req.params.id;
+      const result = await roomsCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection
