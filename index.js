@@ -107,11 +107,19 @@ async function run() {
     })
 
     //get single rooms
-    app.get('/rooms/:id', async (req, res) => {
+    app.get('/room/:id', async (req, res) => {
       const id = req.params.id;
       const result = await roomsCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
     })
+
+    // save a room for database
+    app.post('/rooms', verifyToken, async (req, res) => {
+      const room = req.body;
+      const result = await roomsCollection.insertOne(room);
+      res.send(result)
+    })
+
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
