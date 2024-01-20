@@ -7,6 +7,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 5000
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 
 // middleware
 const corsOptions = {
@@ -99,10 +100,24 @@ async function run() {
       res.send(result)
     })
 
+    //get user role
+    app.get('/user/:email', async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email })
+      res.send(result)
+    })
+
     //rooms collection created
     //get all rooms
     app.get('/rooms', async (req, res) => {
       const result = await roomsCollection.find().toArray()
+      res.send(result);
+    })
+
+    //get rooms for host
+    app.get('/rooms/:email', async (req, res) => {
+      const email = req.params.email;
+      const result = await roomsCollection.find({ 'host.email': email }).toArray();
       res.send(result);
     })
 
@@ -118,6 +133,20 @@ async function run() {
       const room = req.body;
       const result = await roomsCollection.insertOne(room);
       res.send(result)
+    })
+
+    //generate client secret for stripe payment
+    app.post('create-payment-intent', verifyToken, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price * 100);
+      if (!price || amount < 1) return;
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      })
+      res.send({ clientSecret: client_secret })
+
     })
 
 
