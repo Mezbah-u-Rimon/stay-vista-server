@@ -50,6 +50,7 @@ async function run() {
 
     const usersCollection = client.db('stayVistaDB').collection('users');
     const roomsCollection = client.db('stayVistaDB').collection('rooms');
+    const bookingsCollection = client.db('stayVistaDB').collection('bookings');
 
     // auth related api
     app.post('/jwt', async (req, res) => {
@@ -135,8 +136,22 @@ async function run() {
       res.send(result)
     })
 
+    //update room booking status
+    app.patch('/rooms/status/:id', async (req, res) => {
+      const id = req.params.id;
+      const status = req.body.status;
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {
+          booked: status
+        },
+      }
+      const result = await roomsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+
     //generate client secret for stripe payment
-    app.post('create-payment-intent', verifyToken, async (req, res) => {
+    app.post('/create-payment-intent', verifyToken, async (req, res) => {
       const { price } = req.body;
       const amount = parseFloat(price * 100);
       if (!price || amount < 1) return;
@@ -146,7 +161,14 @@ async function run() {
         payment_method_types: ['card'],
       })
       res.send({ clientSecret: client_secret })
+    })
 
+    //save booking info in booking collection
+    app.post('/bookings', async (req, res) => {
+      const booking = req.body;
+      const result = await bookingsCollection.insertOne(booking);
+      //...send email
+      res.send(result)
     })
 
 
