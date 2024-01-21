@@ -22,7 +22,6 @@ app.use(morgan('dev'))
 
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token
-  console.log(token)
   if (!token) {
     return res.status(401).send({ message: 'unauthorized access' })
   }
@@ -77,13 +76,19 @@ async function run() {
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
           })
           .send({ success: true })
-        console.log('Logout successful')
+
       } catch (err) {
         res.status(500).send(err)
       }
     })
 
     // Save or modify user email, status in DB
+    //get all users
+    app.get('/users', verifyToken, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result)
+    })
+
     app.put('/users/:email', async (req, res) => {
       const email = req.params.email
       const user = req.body
@@ -105,6 +110,22 @@ async function run() {
     app.get('/user/:email', async (req, res) => {
       const email = req.params.email;
       const result = await usersCollection.findOne({ email })
+      res.send(result)
+    })
+
+    //update user role
+    app.put("/users/update/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email: email }
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          ...user,
+          timestamp: Date.now(),
+        }
+      };
+      const result = await usersCollection.updateOne(query, updateDoc, options);
       res.send(result)
     })
 
