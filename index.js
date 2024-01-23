@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 5000
 const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+const nodemailer = require('nodemailer')
 
 // middleware
 const corsOptions = {
@@ -19,6 +20,30 @@ app.use(cors(corsOptions))
 app.use(express.json())
 app.use(cookieParser())
 app.use(morgan('dev'))
+
+
+//send email
+const sendEmail = () => {
+  //create a transportal
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.USER,
+      pass: process.env.PASS,
+    },
+  });
+  //verify transporter
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log(error);
+    } else {
+      console.log('server is ready to take our email', success);
+    }
+  })
+}
 
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token
@@ -45,8 +70,8 @@ const client = new MongoClient(uri, {
   },
 })
 async function run() {
+  sendEmail()
   try {
-
     const usersCollection = client.db('stayVistaDB').collection('users');
     const roomsCollection = client.db('stayVistaDB').collection('rooms');
     const bookingsCollection = client.db('stayVistaDB').collection('bookings');
@@ -77,7 +102,7 @@ async function run() {
 
     // auth related api
     app.post('/jwt', async (req, res) => {
-      const user = req.body
+      const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: '365d',
       })
