@@ -66,13 +66,13 @@ const sendEmail = (emailAddress, emailData) => {
     html: `<p>${emailData?.message}</p>`,
   }
 
-  // transporter.sendMail(mailBody, (error, info) => {
-  //   if (error) {
-  //     console.log(error)
-  //   } else {
-  //     console.log('Email sent: ' + info.response)
-  //   }
-  // })
+  transporter.sendMail(mailBody, (error, info) => {
+    if (error) {
+      console.log(error)
+    } else {
+      console.log('Email sent: ' + info.response)
+    }
+  })
 }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.fgd8wc9.mongodb.net/?retryWrites=true&w=majority`;
@@ -85,7 +85,6 @@ const client = new MongoClient(uri, {
   },
 })
 async function run() {
-  sendEmail()
   try {
     const usersCollection = client.db('stayVistaDB').collection('users');
     const roomsCollection = client.db('stayVistaDB').collection('rooms');
@@ -236,7 +235,6 @@ async function run() {
     // Update A room
     app.put('/rooms/:id', verifyToken, async (req, res) => {
       const room = req.body
-      console.log(room)
 
       const filter = { _id: new ObjectId(req.params.id) }
       const options = { upsert: true }
@@ -282,11 +280,24 @@ async function run() {
       res.send({ clientSecret: client_secret })
     })
 
-    //save booking info in booking collection
-    app.post('/bookings', async (req, res) => {
-      const booking = req.body;
-      const result = await bookingsCollection.insertOne(booking);
-      //...send email
+    // Save booking info in booking collection
+    app.post('/bookings', verifyToken, async (req, res) => {
+      const booking = req.body
+      const result = await bookingsCollection.insertOne(booking)
+      // Send Email.....
+      if (result.insertedId) {
+        // To guest
+        sendEmail(booking.guest.email, {
+          subject: 'Booking Successful!',
+          message: `Room Ready, Come here Brother, Your Transaction Id: ${booking.transactionId}`,
+        })
+
+        // To Host
+        sendEmail(booking.host, {
+          subject: 'Your room got booked!',
+          message: `This Room already Booked. ${booking.guest.name} will be coming.....`,
+        })
+      }
       res.send(result)
     })
 
@@ -312,6 +323,40 @@ async function run() {
       res.send(result)
     })
 
+    // delete a booking
+    app.delete('/bookings/:id', verifyToken, async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await bookingsCollection.deleteOne(query)
+      res.send(result)
+    })
+
+    // Admin Stat Data
+    app.get('/admin-stat', verifyToken, verifyAdmin, async (req, res) => {
+      const bookingsDetails = await bookingsCollection
+        .find({}, { projection: { date: 1, price: 1 } })
+        .toArray()
+      const userCount = await usersCollection.countDocuments()
+      const roomCount = await roomsCollection.countDocuments()
+      const totalSale = bookingsDetails.reduce(
+        (sum, data) => sum + data.price,
+        0
+      )
+
+      const chartData = bookingsDetails.map(data => {
+        const day = new Date(data.date).getDate()
+        const month = new Date(data.date).getMonth() + 1
+        return [day + '/' + month, data.price]
+      })
+      chartData.unshift(['Day', 'Sale'])
+      res.send({
+        totalSale,
+        bookingCount: bookingsDetails.length,
+        userCount,
+        roomCount,
+        chartData,
+      })
+    })
 
     // Send a ping to confirm a successful connection
     // await client.db('admin').command({ ping: 1 })
