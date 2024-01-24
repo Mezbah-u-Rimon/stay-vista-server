@@ -21,30 +21,6 @@ app.use(express.json())
 app.use(cookieParser())
 app.use(morgan('dev'))
 
-
-//send email
-const sendEmail = () => {
-  //create a transportal
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.USER,
-      pass: process.env.PASS,
-    },
-  });
-  //verify transporter
-  transporter.verify((error, success) => {
-    if (error) {
-      console.log(error);
-    } else {
-      console.log('server is ready to take our email', success);
-    }
-  })
-}
-
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token
   if (!token) {
@@ -58,6 +34,45 @@ const verifyToken = async (req, res, next) => {
     req.user = decoded
     next()
   })
+}
+
+// Send email
+const sendEmail = (emailAddress, emailData) => {
+  //Create a transporter
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.MAIL,
+      pass: process.env.PASS,
+    },
+  })
+
+  //verify connection
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log(error)
+    } else {
+      console.log('Server is ready to take our emails', success)
+    }
+  })
+
+  const mailBody = {
+    from: process.env.MAIL,
+    to: emailAddress,
+    subject: emailData?.subject,
+    html: `<p>${emailData?.message}</p>`,
+  }
+
+  // transporter.sendMail(mailBody, (error, info) => {
+  //   if (error) {
+  //     console.log(error)
+  //   } else {
+  //     console.log('Email sent: ' + info.response)
+  //   }
+  // })
 }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.fgd8wc9.mongodb.net/?retryWrites=true&w=majority`;
@@ -138,6 +153,13 @@ async function run() {
       res.send(result)
     })
 
+    //get user role
+    app.get('/user/:email', async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email })
+      res.send(result)
+    })
+
     //become a host
     app.put('/users/:email', async (req, res) => {
       const email = req.params.email
@@ -163,13 +185,6 @@ async function run() {
         },
         options
       )
-      res.send(result)
-    })
-
-    //get user role
-    app.get('/user/:email', async (req, res) => {
-      const email = req.params.email;
-      const result = await usersCollection.findOne({ email })
       res.send(result)
     })
 
@@ -215,6 +230,28 @@ async function run() {
     app.post('/rooms', verifyToken, async (req, res) => {
       const room = req.body;
       const result = await roomsCollection.insertOne(room);
+      res.send(result)
+    })
+
+    // Update A room
+    app.put('/rooms/:id', verifyToken, async (req, res) => {
+      const room = req.body
+      console.log(room)
+
+      const filter = { _id: new ObjectId(req.params.id) }
+      const options = { upsert: true }
+      const updateDoc = {
+        $set: room,
+      }
+      const result = await roomsCollection.updateOne(filter, updateDoc, options)
+      res.send(result)
+    })
+
+    // delete a room
+    app.delete('/rooms/:id', verifyToken, async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await roomsCollection.deleteOne(query)
       res.send(result)
     })
 
